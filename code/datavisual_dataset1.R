@@ -5,17 +5,21 @@
 
 library(ggplot2)
 
-data = read.table("heart_data.csv", header = T, sep = ",")
+cd = getwd()
+parent_dir <- dirname(cd)
+file_path_data = file.path(parent_dir, "data")
+
+data = read.table(file.path(file_path_data, "heart_data.csv"), header = T, sep = ",")
 
 ###############################################################
 # Initial modifications
 ###############################################################
 
-data$BMI = round(data$weight / (data$height / 100), 2)
+data$BMI = round(data$weight / (data$height / 100), 2) #add BMI as variable
 
-data$age = round(data$age / 365, 2)
+data$age = round(data$age / 365, 2) #age is initially given in days, lets put in years
 
-data = data[,c(-1,-2)]
+data = data[,c(-1,-2)] #lets eliminate id and index
 
 ###############################################################
 # Initial filtering of outliers by height and weight
@@ -59,7 +63,6 @@ data$gender <- ifelse(data$gender == 1, "F", "M")
 # Data exploration
 ###############################################################
 
-library(ggplot2)
 ggplot(data, aes(x = weight, y = height, color = gender)) +
   geom_point() +
   labs(x = "Weight", y = "Height", color = "Gender") +
