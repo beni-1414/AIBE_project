@@ -25,19 +25,38 @@ data = data[,c(-1,-2)] #lets eliminate id and index
 # Initial filtering of outliers by height and weight
 ###############################################################
 
+par(mfrow=c(1,2))
 boxplot(data$height, main = "HEIGHT")
 boxplot(data$weight, main = "WEIGHT")
 
-outliers_height = boxplot(data$height, plot = F)$out
-outliers_weight = boxplot(data$weight, plot = F)$out
+ggplot(data, aes(x = height, y = weight)) +
+  geom_point() +
+  labs(x = "height", y = "weight") +
+  theme_minimal()
 
+data <- data[data$height >= 130 & data$height <= 230, ]
 
-ids_out_height = which(outliers_height %in% data$height,)
-ids_out_weight = which(outliers_weight %in% data$weight,)
+ggplot(data, aes(x = height, y = weight)) +
+  geom_point() +
+  labs(x = "height", y = "weight") +
+  theme_minimal()
 
-all_ids <- union(ids_out_height, ids_out_weight)
+###############################################################
+# Systolic pressure filtering
+###############################################################
 
-data = data[-all_ids,]
+ggplot(data, aes(x = ap_hi, y = ap_lo)) +
+  geom_point() +
+  labs(x = "ap_hi", y = "ap_lo") +
+  theme_minimal()
+
+data <- data[data$ap_hi <= 200 & data$ap_lo <= 140, ]
+data <- data[data$ap_hi >= 80 & data$ap_lo >= 50, ]
+
+ggplot(data, aes(x = ap_hi, y = ap_lo)) +
+  geom_point() +
+  labs(x = "ap_hi", y = "ap_lo") +
+  theme_minimal()
 
 ###############################################################
 # Detection of gender
@@ -67,4 +86,21 @@ ggplot(data, aes(x = weight, y = height, color = gender)) +
   geom_point() +
   labs(x = "Weight", y = "Height", color = "Gender") +
   theme_minimal()
+
+par(mfrow=c(1,3))
+plot(density(data$age), main = "Age")
+plot(density(data$height), main = "Height")
+plot(density(data$weight), main = "Weight")
+plot(density(data$ap_hi), main = "Ap Hi")
+plot(density(data$ap_lo), main = "Ap Lo")
+plot(density(data$BMI), main = "BMI")
+
+
+###############################################################
+# Write data
+###############################################################
+
+
+# Assuming your dataset is named 'data'
+#write.csv(data, file = file.path(file_path_data,"heart_data_processed.csv"), row.names = TRUE)
 
