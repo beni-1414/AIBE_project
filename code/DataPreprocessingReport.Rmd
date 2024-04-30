@@ -1,0 +1,293 @@
+---
+title: "Data Preprocessing"
+author: "J. Lecumberri, B. Fité & OBustos"
+date: "2024-04-09"
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    toc_depth: 5
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '5'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries loading
+
+```{r, warning=FALSE}
+library(ggplot2)
+library(stringr)
+library(readxl)
+library(data.table)
+library(openxlsx)
+library(knitr)
+library(kableExtra)
+library(RColorBrewer)
+library(scales)
+library(dplyr)
+library(gridExtra)
+library(plotly)
+library(car)
+```
+
+# Data retrieval
+
+Data of the project will be stored in variable `data`.
+
+```{r}
+cd = getwd()
+parent_dir <- dirname(cd)
+file_path_data = file.path(parent_dir, "data")
+
+data = read.table(file.path(file_path_data, "heart_data.csv"), header = T, sep = ",")
+```
+
+## Initial data exploration
+
+Our `data` is initially comprised of 70000 observations and 14 variables
+
+```{r}
+dim(data)
+cat("Variable names: \n", colnames(data))
+```
+
+These variables are:
+
+* **index** and **id**: subject information. Only id will be kept.
+* **age**: age in days of each subject.
+* **gender**: binary variable (0 and 1) with gender information.
+* **height**: data in cm.
+* **weight**: data in kg.
+* **ap_hi**: systolic blood pressure reading.
+* **lo_hi**: diastolic blood pressure reading.
+* **cholesterol**: total cholesterol level on scale 0-5. Each unit denotes decrease by 20 mg/dL.
+* **gluc**: glucose level read as mmol/l.
+* **smoke**: wether subject smokes (1) or not (0).
+* **alco**: whether subject drinks alcohol (1) or not (0).
+* **active**: whether subject is active (1) or not (0).
+* **cardio**: whether subject suffers from cardiovascular disease (1) or not (0).
+
+
+# Data processing
+
+Before any analysis it is important to perform the necessary modifications, additions and filtering steps in order to correct units, missing values, add informative data or remove outliers.
+
+## Initial variable modifications and additions
+
+First of all we will correct `age` variable and put it in years units:
+
+```{r}
+data$age = round(data$age / 365, 2) 
+```
+
+Addition of BMI variable, computed as follows:
+
+$$BMI = \frac{weight_{kg}}{height_{m}^2}$$
+```{r}
+data$BMI = round(data$weight / (data$height / 100)**2, 2) 
+```
+
+Removal of `id` and `index` variables as row id already covers for this information:
+
+```{r}
+data = data[,c(-1,-2)] 
+```
+
+## Filtering: removal of outliers
+
+By inspecting how the different variables are:
+
+### Height - Weight
+
+```{r}
+boxplot(data$height, main = "HEIGHT")
+boxplot(data$weight, main = "WEIGHT")
+
+ggplot(data, aes(x = height, y = weight)) +
+  geom_point() +
+  labs(x = "height", y = "weight") +
+  theme_minimal()
+```
+
+We can see how in `height` and `weight` have a lot of clears outliers and clear data errors:
+
+```{r}
+cat("Maximum value of height", max(data$height),"\n")
+cat("Maximum value of weight", max(data$weight),"\n")
+cat("Minumum value of height", min(data$height),"\n")
+cat("Minumum value of weight", min(data$weight),"\n")
+```
+Filtering applied:
+
+```{r}
+data <- data[data$height >= 130 & data$height <= 230, ] 
+data <- data[data$weight >= 45,]
+```
+
+Once filtered is looks as follows:
+
+```{r}
+ggplot(data, aes(x = height, y = weight)) +
+  geom_point() +
+  labs(x = "height", y = "weight") +
+  theme_minimal()
+```
+
+
+### Systolic and diastolic pressures
+
+First of all let's check how these two variables are distributed:
+
+```{r}
+ggplot(data, aes(x = ap_hi, y = ap_lo)) +
+  geom_point() +
+  labs(x = "ap_hi", y = "ap_lo") +
+  theme_minimal()
+```
+
+We can observe clear outliers:
+
+```{r}
+cat("Maximum value of systolic P", max(data$ap_hi),"\n")
+cat("Maximum value of diastolic P", max(data$ap_lo),"\n")
+cat("Minumum value of systolic P", min(data$ap_hi),"\n")
+cat("Minumum value of diastolic P", min(data$ap_lo),"\n")
+```
+So we will filter data by sources found for normal values of systolic and diastolic pressure
+
+```{r}
+data <- data[data$ap_hi <= 200 & data$ap_lo <= 140, ]
+data <- data[data$ap_hi >= 80 & data$ap_lo >= 50, ]
+
+ggplot(data, aes(x = ap_hi, y = ap_lo)) +
+  geom_point() +
+  labs(x = "ap_hi", y = "ap_lo") +
+  theme_minimal()
+```
+
+### Gender detection
+
+We have a binary result for gender: 1 and 2, but we need to characterize it correctly by male and female.
+
+```{r}
+weights_1 = data[data$gender == 1,]$weight
+weights_2 = data[data$gender == 2,]$weight
+
+cat("Mean weight value for gender = 1",mean(weights_1),"\n")
+cat("Mean weight value for gender = 2",mean(weights_2),"\n\n")
+
+heights_1 = data[data$gender == 1,]$height
+heights_2 = data[data$gender == 2,]$height
+
+cat("Mean height value for gender = 1",mean(heights_1),"\n")
+cat("Mean height value for gender = 2",mean(heights_2))
+```
+
+
+So knowing that males, even more in a dataset of this size, have in avergare higher height and weight:
+
+```{r}
+data$gender <- ifelse(data$gender == 1, "F", "M")
+data$gender <- as.factor(data$gender)
+```
+
+
+```{r}
+ggplot(data, aes(x = weight, y = height, color = gender)) +
+  geom_point() +
+  labs(x = "Weight", y = "Height", color = "Gender") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(data, aes(x = ap_hi, y = ap_lo, color = gender)) +
+  geom_point() +
+  labs(x = "Systolic pressure", y = "Diastolic pressure", color = "Gender") +
+  theme_minimal()
+```
+
+
+```{r}
+par(mfrow=c(1,3))
+plot(density(data$age), main = "Age")
+plot(density(data$height), main = "Height")
+plot(density(data$weight), main = "Weight")
+plot(density(data$ap_hi), main = "Ap Hi")
+plot(density(data$ap_lo), main = "Ap Lo")
+plot(density(data$BMI), main = "BMI")
+```
+
+We have normal apparent normal distribution across all these continuous variables. 
+
+### Factorization of discrete variables
+
+Now for the finale variables, those that are discrete over certain ranges of values, specified in the variables descriptions, we can study their representations and factor them.
+
+```{r}
+table(data$cholesterol)
+table(data$gluc)
+table(data$smoke)
+table(data$alco)
+table(data$active)
+table(data$cardio)
+
+data$cholesterol <- as.factor(data$cholesterol)
+data$gluc <- as.factor(data$gluc)
+data$smoke <- as.factor(data$smoke)
+data$alco <- as.factor(data$alco)
+data$cardio <- as.factor(data$cardio)
+```
+
+```{r}
+p1 <- ggplot(data, aes(x = cholesterol)) +
+  geom_bar() +
+  labs(title = "Cholesterol Levels",
+       x = "Cholesterol Levels",
+       y = "Count") +
+  theme(plot.title = element_text(size = 10)) # Adjust size here
+
+p2 <- ggplot(data, aes(x = gluc)) +
+  geom_bar() +
+  labs(title = "Glucose Levels",
+       x = "Glucose Levels",
+       y = "Count") +
+  theme(plot.title = element_text(size = 10)) # Adjust size here
+
+p3 <- ggplot(data, aes(x = smoke)) +
+  geom_bar() +
+  labs(title = "Smoke Status",
+       x = "Smoke Levels",
+       y = "Count") +
+  theme(plot.title = element_text(size = 10)) # Adjust size here
+
+p4 <- ggplot(data, aes(x = alco)) +
+  geom_bar() +
+  labs(title = "Alcohol Status",
+       x = "Alcohol Levels",
+       y = "Count") +
+  theme(plot.title = element_text(size = 10)) # Adjust size here
+
+p5 <- ggplot(data, aes(x = active)) +
+  geom_bar() +
+  labs(title = "Active Status",
+       x = "Active Levels",
+       y = "Count") +
+  theme(plot.title = element_text(size = 10)) # Adjust size here
+
+p6 <- ggplot(data, aes(x = cardio)) +
+  geom_bar() +
+  labs(title = "Cardio Output Levels",
+       x = "Cardio Levels",
+       y = "Count") +
+  theme(plot.title = element_text(size = 10)) # Adjust size here
+
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 2, ncol = 3)
+```
+
